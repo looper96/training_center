@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about an authenticated user of the Snapp Kitchen Training Center platform.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 1024 },
+        "role": { "type": "string", "enum": ["admin", "trainer", "supervisor", "ops", "hr"], "maxLength": 32 },
+        "status": { "type": "string", "enum": ["active", "suspended"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email"]
+    },
+    "Ticket": {
+      "title": "Talent Pipeline Ticket",
+      "description": "Lifecycle record for a candidate flowing through Request, HR, Training Center, Evaluation, and Operations Handover.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "zone": { "type": "string", "enum": ["hub", "superhub", "irancell"], "maxLength": 32 },
+        "location": { "type": "string", "maxLength": 256 },
+        "requiredSkills": { "type": "array" },
+        "requestedBy": { "type": "string", "maxLength": 128 },
+        "requestDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["requested", "referred_to_training", "training", "evaluation", "handover"], "maxLength": 32 },
+        "hrSeen": { "type": "boolean" },
+        "returnHistory": { "type": "array" },
+        "hr": { "type": "object" },
+        "tc": { "type": "object" },
+        "customFields": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "zone", "location", "requestedBy", "status"]
+    },
+    "EvaluationRecord": {
+      "title": "Evaluation Record",
+      "description": "Results for C2-C8 assessments for candidates or general training cohorts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ticketId": { "type": "string", "maxLength": 128 },
+        "stage": { "type": "string", "enum": ["c2", "c3", "c4", "c5", "c6", "c7", "c8"], "maxLength": 32 },
+        "zone": { "type": "string", "maxLength": 32 },
+        "candidateName": { "type": "string", "maxLength": 128 },
+        "reviewer": { "type": "string", "maxLength": 128 },
+        "period": { "type": "string", "maxLength": 64 },
+        "score": { "type": "number" },
+        "pass": { "type": "boolean" },
+        "details": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "stage", "pass"]
+    },
+    "ZoneConfig": {
+      "title": "Zone Module Configuration",
+      "description": "Custom module selection and duration for Hub, SuperHub, and irancell.",
+      "type": "object",
+      "properties": {
+        "zone": { "type": "string", "enum": ["hub", "superhub", "irancell"], "maxLength": 32 },
+        "mods": { "type": "array" },
+        "dur": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["zone", "mods", "dur"]
+    },
+    "SiteSettings": {
+      "title": "Site Management Settings",
+      "description": "Global custom fields, passing scores, and module overrides configured by administrators.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ticketCustomFields": { "type": "array" },
+        "componentCustomFields": { "type": "array" },
+        "passingScores": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id"]
+    },
+    "CustomComponent": {
+      "title": "Custom Module Component",
+      "description": "Educational components added or edited via the site administration panel.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ماژول": { "type": "string", "maxLength": 32 },
+        "جزء": { "type": "string", "maxLength": 256 },
+        "نوع": { "type": "string", "maxLength": 64 },
+        "منبع": { "type": "string", "maxLength": 128 },
+        "توضیح": { "type": "string", "maxLength": 2048 },
+        "موقعیت": { "type": "string", "maxLength": 128 },
+        "contentHtml": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ماژول", "جزء"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile collection."
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Talent pipeline candidate tickets."
+    },
+    "/evaluations/{evaluationId}": {
+      "schema": { "$ref": "#/entities/EvaluationRecord" },
+      "description": "C2 to C8 evaluation records."
+    },
+    "/zoneConfigs/{zoneId}": {
+      "schema": { "$ref": "#/entities/ZoneConfig" },
+      "description": "Zone builder configurations for Hub, SuperHub, and irancell."
+    },
+    "/siteSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Global custom fields and settings."
+    },
+    "/customComponents/{componentId}": {
+      "schema": { "$ref": "#/entities/CustomComponent" },
+      "description": "Custom educational content and components managed by admin."
+    }
+  }
+}
