@@ -1,0 +1,178 @@
+rules_version = '2';
+
+// Security model
+// --------------
+// * Identity comes from Firebase Auth. Authorisation comes from users/{uid}:
+//   role, status and sectionPermissions (a map: section -> 'none' | 'view' | 'edit').
+// * Only role == 'admin' can change anyone's role / status / permissions.
+// * The first account in a fresh project claims config/bootstrap and becomes admin;
+//   every later self-registered account starts as 'pending' with no access.
+// * sectionLevel() mirrors getUserSectionPermission() in src/types/pipeline.ts.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function me() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return signedIn() && exists(userPath(request.auth.uid)) && me().status == 'active';
+    }
+
+    function isAdmin() {
+      return isActive() && me().role == 'admin';
+    }
+
+    function sectionLevel(section) {
+      return me().get('sectionPermissions', {}).get(section, 'none');
+    }
+
+    function canView(section) {
+      return isAdmin() || (isActive() && sectionLevel(section) in ['view', 'edit']);
+    }
+
+    function canEdit(section) {
+      return isAdmin() || (isActive() && sectionLevel(section) == 'edit');
+    }
+
+    function validId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isZone(z) {
+      return z in ['hub', 'superhub', 'irancell'];
+    }
+
+    function isStatus(s) {
+      return s in ['requested', 'referred_to_training', 'training', 'evaluation', 'handover'];
+    }
+
+    function validPermissions(p) {
+      return p is map
+        && p.keys().hasOnly(['dashboard', 'request', 'hr', 'tc', 'handover', 'docs', 'eval', 'admin', 'overview'])
+        && p.values().hasOnly(['none', 'view', 'edit']);
+    }
+
+    function validProfile(d, uid) {
+      return d.userId == uid
+        && d.email is string && d.email.size() <= 256
+        && d.displayName is string && d.displayName.size() <= 128
+        && d.role in ['admin', 'trainer', 'hr', 'ops', 'supervisor']
+        && d.status in ['active', 'suspended', 'pending']
+        && (!('sectionPermissions' in d) || validPermissions(d.sectionPermissions));
+    }
+
+    // ---------- default deny ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------- bootstrap marker (who became the first admin) ----------
+    match /config/bootstrap {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.adminUid == request.auth.uid
+        && getAfter(userPath(request.auth.uid)).data.role == 'admin';
+      allow update, delete: if false;
+    }
+
+    // ---------- user profiles ----------
+    match /users/{uid} {
+      allow get: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if validProfile(request.resource.data, uid) && (
+        // 1) First sign-in in a fresh project: become admin together with the bootstrap marker.
+        (signedIn() && request.auth.uid == uid
+          && request.auth.token.email_verified == true
+          && request.resource.data.role == 'admin'
+          && request.resource.data.status == 'active'
+          && !exists(/databases/$(database)/documents/config/bootstrap)
+          && getAfter(/databases/$(database)/documents/config/bootstrap).data.adminUid == uid)
+        ||
+        // 2) Any later self sign-in: a pending trainer with no permissions.
+        (signedIn() && request.auth.uid == uid
+          && request.resource.data.email == request.auth.token.email.lower()
+          && request.resource.data.role == 'trainer'
+          && request.resource.data.status == 'pending'
+          && !('sectionPermissions' in request.resource.data))
+        ||
+        // 3) Admin provisioning an account.
+        isAdmin()
+      );
+
+      allow update: if validProfile(request.resource.data, uid) && (
+        isAdmin()
+        // Users may edit only cosmetic fields of their own profile.
+        || (signedIn() && request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']))
+      );
+
+      // Admins cannot delete their own profile (prevents locking everyone out).
+      allow delete: if isAdmin() && request.auth.uid != uid;
+    }
+
+    // ---------- talent pipeline tickets ----------
+    function validTicket(d, id) {
+      return d.id == id
+        && isZone(d.zone)
+        && isStatus(d.status)
+        && d.location is string && d.location.size() <= 256
+        && d.requestedBy is string && d.requestedBy.size() <= 128;
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if canView('dashboard') || canView('request') || canView('hr')
+        || canView('tc') || canView('handover') || canView('eval');
+      allow create: if validId(ticketId)
+        && validTicket(request.resource.data, ticketId)
+        && (canEdit('request') || isAdmin());
+      // Each pipeline stage edits the same ticket document.
+      allow update: if validTicket(request.resource.data, ticketId)
+        && (canEdit('request') || canEdit('hr') || canEdit('tc') || canEdit('handover') || canEdit('eval'));
+      allow delete: if isAdmin();
+    }
+
+    // ---------- evaluation log (append-only) ----------
+    match /evaluations/{evaluationId} {
+      allow read: if canView('eval') || canView('tc');
+      allow create: if validId(evaluationId)
+        && canEdit('eval')
+        && request.resource.data.id == evaluationId
+        && request.resource.data.stage is string && request.resource.data.stage.size() <= 16
+        && request.resource.data.pass is bool
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- zone builder ----------
+    match /zoneConfigs/{zoneId} {
+      allow read: if isActive();
+      allow write: if isZone(zoneId) && canEdit('overview')
+        && request.resource.data.mods is list
+        && request.resource.data.dur is string;
+    }
+
+    // ---------- admin-managed settings & training content ----------
+    match /siteSettings/{settingId} {
+      allow read: if isActive();
+      allow write: if settingId == 'global' && canEdit('admin');
+    }
+
+    match /content/{docId} {
+      allow read: if isActive();
+      allow write: if docId in ['modules', 'components', 'quizzes'] && canEdit('admin');
+    }
+  }
+}

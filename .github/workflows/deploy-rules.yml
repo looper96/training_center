@@ -1,0 +1,31 @@
+name: Deploy Firestore rules
+
+# Deploys firestore.rules / firestore.indexes.json when they change on main.
+# Setup (once): add repository secret FIREBASE_SERVICE_ACCOUNT (JSON key of a service
+# account with the "Firebase Rules Admin" + "Cloud Datastore Index Admin" roles) and
+# repository variable FIREBASE_PROJECT_ID. Without them this workflow is skipped.
+
+on:
+  push:
+    branches: [main]
+    paths: [firestore.rules, firestore.indexes.json, firebase.json]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.FIREBASE_PROJECT_ID != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy
+        env:
+          SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SA_KEY" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx firebase deploy --only firestore:rules,firestore:indexes --project "${{ vars.FIREBASE_PROJECT_ID }}" --non-interactive
