@@ -326,7 +326,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="pr-4 space-y-0.5 pt-1">
                 {[
                   { id: 'v-eval', label: 'C1 — چارچوب ۴ سطحی Kirkpatrick' },
-                  { id: 'v-eval-c2', label: 'C2 — آزمون تئوری (۳۰ سوال)' },
+                  { id: 'v-eval-c2', label: 'C2 — آزمون تئوری ماژول‌ها' },
                   { id: 'v-eval-c3', label: 'C3 — چک‌لیست عملی ایستگاهی' },
                   { id: 'v-eval-c4', label: 'C4 — مصاحبه صلاحیت' },
                   { id: 'v-eval-c5', label: 'C5 — شبیه‌سازی پیک عملیاتی' },

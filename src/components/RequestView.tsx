@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { PipelineTicket, ZoneType, SiteSettings } from '../types/pipeline';
+import { PipelineTicket, ZoneType, SiteSettings, JobPosition } from '../types/pipeline';
+import { positionLabel } from '../lib/assessment';
 import { ZONE_LABEL, STATUS_LABEL, STATUS_COLOR } from '../data/pipelineSeed';
 import { PlusCircle, ListFilter, ArrowLeft, CheckCircle2, ChevronRight, Sliders, ShieldAlert, FileText, Send } from 'lucide-react';
 import { showToast } from './Toast';
@@ -9,6 +10,7 @@ interface RequestViewProps {
   canEdit?: boolean;
   tickets: PipelineTicket[];
   settings?: SiteSettings;
+  positions: JobPosition[];
   onSubmitRequest: (ticket: Omit<PipelineTicket, 'id' | 'requestDate' | 'status' | 'hrSeen' | 'returnHistory' | 'hr' | 'tc'>) => void;
 }
 
@@ -16,11 +18,13 @@ export const RequestView: React.FC<RequestViewProps> = ({
   canEdit = true, 
   tickets, 
   settings, 
+  positions,
   onSubmitRequest 
 }) => {
   const [activeSubtab, setActiveSubtab] = useState<'new' | 'status'>(canEdit ? 'new' : 'status');
   const [zone, setZone] = useState<ZoneType>('hub');
   const [location, setLocation] = useState('');
+  const [position, setPosition] = useState('');
   const [skillsText, setSkillsText] = useState('');
   const [requestedBy, setRequestedBy] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
@@ -33,13 +37,14 @@ export const RequestView: React.FC<RequestViewProps> = ({
       showToast('حساب کاربری شما فاقد دسترسی ثبت درخواست (فقط مشاهده) است.', 'warning');
       return;
     }
-    if (!location.trim() || !skillsText.trim() || !requestedBy.trim()) {
+    if (!location.trim() || !position || !skillsText.trim() || !requestedBy.trim()) {
       showToast('لطفاً همه فیلدهای الزامی درخواست را تکمیل نمایید.', 'warning');
       return;
     }
     const requiredSkills = skillsText.split('\n').map(s => s.trim()).filter(Boolean);
     onSubmitRequest({
       zone,
+      position,
       location: location.trim(),
       requiredSkills,
       requestedBy: requestedBy.trim(),
@@ -49,6 +54,7 @@ export const RequestView: React.FC<RequestViewProps> = ({
     showToast(`درخواست نیرو برای ${location} با موفقیت ثبت شد.`, 'success');
     setSubmittedFeedback(`درخواست برای ${location} با موفقیت ثبت شد.`);
     setLocation('');
+    setPosition('');
     setSkillsText('');
     setRequestedBy('');
     setCustomFieldValues({});
@@ -140,6 +146,25 @@ export const RequestView: React.FC<RequestViewProps> = ({
                 <option value="superhub">Zone SuperHub (۵ روز آموزش پخت و تاپینگ)</option>
                 <option value="irancell">Zone irancell (~۲–۳ روز عملیات اختصاصی)</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#1A1B1F] mb-1.5">بخش / سمت استخدام</label>
+              <select
+                value={position}
+                required
+                disabled={!canEdit}
+                onChange={e => setPosition(e.target.value)}
+                className="w-full md-input font-bold"
+              >
+                <option value="">— انتخاب بخش —</option>
+                {positions.map(p => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-[#524534] mt-1">
+                ماژول‌های آموزشی و آزمون‌های نیرو بر اساس همین بخش تعیین می‌شوند.
+              </p>
             </div>
 
             <div>
@@ -353,6 +378,10 @@ export const RequestView: React.FC<RequestViewProps> = ({
               <div className="flex justify-between py-1 border-b border-[#E3E2E7]">
                 <span className="text-[#524534]">Zone:</span>
                 <span className="font-bold text-[#1A1B1F]">{ZONE_LABEL[selectedTicket.zone]}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[#E3E2E7]">
+                <span className="text-[#524534]">بخش استخدام:</span>
+                <span className="font-bold text-[#1A1B1F]">{positionLabel(positions, selectedTicket.position)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#E3E2E7]">
                 <span className="text-[#524534]">شعبه:</span>

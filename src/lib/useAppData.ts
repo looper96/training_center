@@ -18,16 +18,16 @@ import {
   canUserViewSection,
   type ModuleComponentData,
   type PipelineTicket,
-  type QuizQuestion,
+  type QuizBank,
   type SiteSectionId,
   type SiteSettings,
   type SystemUser,
   type TrainingModule,
+  type ZoneConfigs,
   type ZoneType,
 } from '../types/pipeline';
 
-export type ZoneConfigs = Record<ZoneType, { mods: string[]; dur: string }>;
-export type QuizBank = Record<ZoneType, QuizQuestion[]>;
+export type { ZoneConfigs, QuizBank };
 
 /** Sections whose views read the `tickets` collection (mirrors `canReadTickets()` in firestore.rules). */
 const TICKET_SECTIONS: SiteSectionId[] = ['dashboard', 'request', 'hr', 'tc', 'handover', 'eval'];
@@ -130,7 +130,8 @@ export function useAppData(profile: SystemUser | null) {
         err => reportError(err, 'دریافت ماژول‌ها')),
       onSnapshot(CONTENT.components(), s => setModuleComponents(s.exists() ? s.data().items : MODULE_COMPONENTS),
         err => reportError(err, 'دریافت اجزای ماژول‌ها')),
-      onSnapshot(CONTENT.quizzes(), s => setQuizzes(s.exists() ? { ...QUIZ, ...s.data().byZone } : QUIZ),
+      // Older documents stored questions per zone (`byZone`); only the per-module bank is used now.
+      onSnapshot(CONTENT.quizzes(), s => setQuizzes(s.exists() && s.data().byModule ? { ...QUIZ, ...s.data().byModule } : QUIZ),
         err => reportError(err, 'دریافت بانک سؤالات')),
     ];
     return () => unsubs.forEach(u => u());
@@ -171,8 +172,8 @@ export function useAppData(profile: SystemUser | null) {
   const saveComponents = (items: ModuleComponentData[]) =>
     write('ذخیره اجزای ماژول', () => setDoc(CONTENT.components(), { items, updatedAt: nowISO() }));
 
-  const saveQuizzes = (byZone: QuizBank) =>
-    write('ذخیره بانک سؤالات', () => setDoc(CONTENT.quizzes(), { byZone, updatedAt: nowISO() }));
+  const saveQuizzes = (byModule: QuizBank) =>
+    write('ذخیره بانک سؤالات', () => setDoc(CONTENT.quizzes(), { byModule, updatedAt: nowISO() }));
 
   /** Writes a backup (or the bundled defaults) back to Firestore. Users are never imported. */
   const restore = (data: {
@@ -194,7 +195,7 @@ export function useAppData(profile: SystemUser | null) {
         );
       if (data.trainingModules) ops.push(b => b.set(CONTENT.modules(), { items: data.trainingModules, updatedAt: ts }));
       if (data.moduleComponents) ops.push(b => b.set(CONTENT.components(), { items: data.moduleComponents, updatedAt: ts }));
-      if (data.quizzes) ops.push(b => b.set(CONTENT.quizzes(), { byZone: data.quizzes, updatedAt: ts }));
+      if (data.quizzes) ops.push(b => b.set(CONTENT.quizzes(), { byModule: data.quizzes, updatedAt: ts }));
 
       // Firestore batches are limited to 500 writes.
       for (let i = 0; i < ops.length; i += 450) {

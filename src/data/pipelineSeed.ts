@@ -32,9 +32,13 @@ export const ROLE_LABELS: Record<string, string> = {
   supervisor: 'سوپروایزر شعبه (Supervisor)'
 };
 
+/** Questions drawn from each module for the C2 exam unless an admin changes it. */
+export const DEFAULT_QUESTIONS_PER_MODULE = 5;
+
 export const INITIAL_SITE_SETTINGS: SiteSettings = {
   id: 'global_settings',
   passingScorePct: 80,
+  quizQuestionsPerModule: DEFAULT_QUESTIONS_PER_MODULE,
   ticketCustomFields: [
     {
       id: 'cf_phone',
@@ -101,15 +105,6 @@ export const ZONES_INIT: Record<ZoneType, { mods: string[]; dur: string }> = {
   irancell: { mods: ['M1', 'M6', 'M8'], dur: '~۲–۳ روز' }
 };
 
-export const INTERVIEW_Q = [
-  'چه میزان سابقه کار در رستوران یا فست‌فود دارید؟',
-  'نحوه‌ی واکنش شما به خرابی ناگهانی تجهیزات (مثل فرایر یا یخچال) چیست؟',
-  'اگر همکارتان اشتباهی مرتکب شود، چگونه با او برخورد می‌کنید؟',
-  'در شرایط شلوغی و فشار زمانی پیک، چطور اولویت‌بندی می‌کنید؟',
-  'تا چه اندازه توانایی آموزش و انتقال تجربه به نیروی جدید بعدی را دارید؟',
-  'اگر متوجه تغییر غیرعادی در دمای یک دستگاه شوید، چه اقدامی انجام می‌دهید؟'
-];
-
 export const HANDOVER_ITEMS = [
   'جلسه‌ی حضوری/تماس مستقیم بین مسئول مرکز آموزش و سرپرست عملیات پذیرنده برگزار شد',
   'فرم نهایی تأیید صلاحیت (C6) به سرپرست پذیرنده منتقل شد',
@@ -129,6 +124,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't1',
     zone: 'hub',
+    position: 'packing',
     location: 'هاب ۳ — تهران، سعادت‌آباد',
     requiredSkills: ['بسته‌بندی سریع و دقیق', 'کار با پنل ثبت سفارش', 'آشنایی با اصول FIFO'],
     requestedBy: 'سرپرست عملیات هاب ۳',
@@ -143,6 +139,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't2',
     zone: 'hub',
+    position: 'delivery',
     location: 'هاب ۱ — تهران، ونک',
     requiredSkills: ['بسته‌بندی سریع و دقیق', 'تحویل به بایکر'],
     requestedBy: 'سرپرست عملیات هاب ۱',
@@ -163,6 +160,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't3',
     zone: 'superhub',
+    position: 'kitchen',
     location: 'سوپرهاب ۲ — کرج',
     requiredSkills: ['پخت گریل', 'کار با فرایر', 'QC ظاهری محصول'],
     requestedBy: 'سرپرست عملیات سوپرهاب ۲',
@@ -199,6 +197,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't4',
     zone: 'superhub',
+    position: 'kitchen',
     location: 'سوپرهاب ۱ — تهران، پونک',
     requiredSkills: ['پخت گریل', 'تاپینگ برگر', 'بسته‌بندی نهایی'],
     requestedBy: 'سرپرست عملیات سوپرهاب ۱',
@@ -238,6 +237,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't5',
     zone: 'irancell',
+    position: 'irancell_branch',
     location: 'شعبه ایرانسل — ولیعصر',
     requiredSkills: ['عملیات کامل شعبه', 'رعایت ساعت‌های مقرر'],
     requestedBy: 'سرپرست شعبه ایرانسل',
@@ -285,6 +285,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't6',
     zone: 'hub',
+    position: 'packing',
     location: 'هاب ۲ — اصفهان',
     requiredSkills: ['بسته‌بندی', 'کنترل دما هنگام ارسال'],
     requestedBy: 'سرپرست عملیات هاب ۲',
@@ -305,6 +306,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't7',
     zone: 'superhub',
+    position: 'kitchen',
     location: 'سوپرهاب ۳ — تهران، تجریش',
     requiredSkills: ['پخت فرایر', 'تاپینگ', 'QC'],
     requestedBy: 'سرپرست عملیات سوپرهاب ۳',
@@ -323,6 +325,7 @@ export const TICKETS_SEED: PipelineTicket[] = [
   {
     id: 't8',
     zone: 'hub',
+    position: 'delivery',
     location: 'هاب ۴ — تهران، نارمک',
     requiredSkills: ['بسته‌بندی سریع', 'تحویل به بایکر'],
     requestedBy: 'سرپرست عملیات هاب ۴',
