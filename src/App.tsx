@@ -19,9 +19,10 @@ import { isFirebaseConfigured, createAuthAccount } from './lib/firebase';
 import { useAuth, logout } from './lib/useAuth';
 import { useAppData } from './lib/useAppData';
 import { nowISO } from './lib/date';
+import { positionsOf } from './lib/assessment';
+import { DEFAULT_QUESTIONS_PER_MODULE } from './data/pipelineSeed';
 import {
   PipelineTicket,
-  ZoneType,
   SystemUser,
   UserRole,
   SiteSettings,
@@ -84,6 +85,7 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
   const [activeCandidateTicketId, setActiveCandidateTicketId] = useState<string | null>(null);
   const data = useAppData(profile);
   const { tickets } = data;
+  const positions = positionsOf(data.siteSettings);
 
   const findTicket = (id: string) => tickets.find(t => t.id === id);
   const handleUpdateTicket = (updated: PipelineTicket) => data.saveTicket(updated);
@@ -216,10 +218,10 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
   const handleUpdateModules = (mods: TrainingModule[]) => data.saveModules(mods);
   const handleUpdateSettings = (s: SiteSettings) => data.saveSettings(s);
 
-  const handleAddQuizQuestion = (zone: ZoneType, question: QuizQuestion) =>
-    data.saveQuizzes({ ...data.quizzes, [zone]: [...(data.quizzes[zone] || []), question] });
-  const handleDeleteQuizQuestion = (zone: ZoneType, index: number) =>
-    data.saveQuizzes({ ...data.quizzes, [zone]: (data.quizzes[zone] || []).filter((_, i) => i !== index) });
+  const handleAddQuizQuestion = (moduleId: string, question: QuizQuestion) =>
+    data.saveQuizzes({ ...data.quizzes, [moduleId]: [...(data.quizzes[moduleId] || []), question] });
+  const handleDeleteQuizQuestion = (moduleId: string, index: number) =>
+    data.saveQuizzes({ ...data.quizzes, [moduleId]: (data.quizzes[moduleId] || []).filter((_, i) => i !== index) });
 
   const handleExportBackup = () => {
     const backupData = {
@@ -251,7 +253,9 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
       zoneConfigs: backup.zoneConfigs,
       trainingModules: backup.trainingModules,
       moduleComponents: backup.moduleComponents,
-      quizzes: backup.quizzes,
+      // Backups made before the per-module question bank keyed questions by zone; those are skipped.
+      quizzes:
+        backup.quizzes && typeof backup.quizzes === 'object' && !('hub' in backup.quizzes) ? backup.quizzes : undefined,
     });
     if (ok) showToast('فایل پشتیبان با موفقیت بازیابی شد (کاربران بازیابی نمی‌شوند).', 'success');
   };
@@ -329,6 +333,7 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
                 canEdit={canEditCurrentSection}
                 tickets={data.tickets}
                 settings={data.siteSettings}
+                positions={positions}
                 onSubmitRequest={handleAddTicket}
               />
             )}
@@ -348,6 +353,9 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
               <TcView
                 canEdit={canEditCurrentSection}
                 tickets={data.tickets}
+                modules={data.trainingModules}
+                zoneConfigs={data.zoneConfigs}
+                positions={positions}
                 onUpdateTicket={handleUpdateTicket}
                 onNavigateToEval={handleNavigateToEvalFromTC}
                 onNavigateToModuleDoc={modId => handleNavigate('v-module', modId)}
@@ -403,6 +411,7 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
                 onImportBackup={handleImportBackup}
                 onLoadDefaults={data.loadDefaults}
                 quizzes={data.quizzes}
+                positions={positions}
                 onAddQuizQuestion={handleAddQuizQuestion}
                 onDeleteQuizQuestion={handleDeleteQuizQuestion}
               />
@@ -415,6 +424,12 @@ function MainApp({ profile, onSignOut }: { profile: SystemUser; onSignOut: () =>
                 activeTicket={activeCandidate || null}
                 onSaveResult={handleSaveEvaluationResult}
                 onNavigate={handleNavigate}
+                passingScorePct={data.siteSettings.passingScorePct}
+                questionsPerModule={data.siteSettings.quizQuestionsPerModule ?? DEFAULT_QUESTIONS_PER_MODULE}
+                quizBank={data.quizzes}
+                modules={data.trainingModules}
+                zoneConfigs={data.zoneConfigs}
+                positions={positions}
               />
             )}
 

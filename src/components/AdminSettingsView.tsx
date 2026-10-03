@@ -5,8 +5,9 @@ import {
   CustomFieldDefinition, 
   SiteSettings, 
   ModuleComponentData, 
-  ZoneType, 
   QuizQuestion, 
+  QuizBank,
+  JobPosition,
   TrainingModule, 
   SiteSectionId, 
   SITE_SECTIONS, 
@@ -18,7 +19,7 @@ import {
   getUserSectionPermission,
   canUserEditSection
 } from '../types/pipeline';
-import { ROLE_LABELS, ZONE_LABEL, MODS } from '../data/pipelineSeed';
+import { ROLE_LABELS, MODS, DEFAULT_QUESTIONS_PER_MODULE } from '../data/pipelineSeed';
 import { QUIZ } from '../data/pipelineEval';
 import { showToast } from './Toast';
 import { 
@@ -82,9 +83,11 @@ export interface AdminSettingsViewProps {
   onExportBackup: () => void;
   onImportBackup?: (backupData: any) => void;
   onLoadDefaults: (includeDemoTickets: boolean) => Promise<boolean>;
-  quizzes?: typeof QUIZ;
-  onAddQuizQuestion?: (zone: ZoneType, question: QuizQuestion) => void;
-  onDeleteQuizQuestion?: (zone: ZoneType, index: number) => void;
+  quizzes?: QuizBank;
+  /** Hiring positions and their modules (stored in siteSettings.positions). */
+  positions: JobPosition[];
+  onAddQuizQuestion?: (moduleId: string, question: QuizQuestion) => void;
+  onDeleteQuizQuestion?: (moduleId: string, index: number) => void;
 }
 
 export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
@@ -107,6 +110,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   onImportBackup,
   onLoadDefaults,
   quizzes = QUIZ,
+  positions,
   onAddQuizQuestion,
   onDeleteQuizQuestion
 }) => {
@@ -172,7 +176,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   const [fieldTargetFilter, setFieldTargetFilter] = useState<'all' | 'ticket' | 'component'>('all');
 
   // Quiz Editor
-  const [quizZone, setQuizZone] = useState<ZoneType>('hub');
+  const [quizModule, setQuizModule] = useState<string>('M1');
   const [newQTitle, setNewQTitle] = useState('');
   const [newQOpt0, setNewQOpt0] = useState('');
   const [newQOpt1, setNewQOpt1] = useState('');
@@ -479,7 +483,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     }
 
     if (onAddQuizQuestion) {
-      onAddQuizQuestion(quizZone, {
+      onAddQuizQuestion(quizModule, {
         q: newQTitle.trim(),
         options: [newQOpt0.trim(), newQOpt1.trim(), newQOpt2.trim(), newQOpt3.trim()],
         correct: newQCorrect
@@ -521,6 +525,24 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
 
   // Active module list
   const activeModules = modules || MODS;
+  const quizModuleName = activeModules.find(m => m.id === quizModule)?.name ?? '';
+
+  // Hiring positions → modules
+  const savePositions = (next: JobPosition[]) => {
+    if (!canEdit) {
+      showToast('حساب کاربری شما دارای دسترسی فقط مشاهده است.', 'warning');
+      return;
+    }
+    onUpdateSettings({ ...settings, positions: next });
+  };
+  const togglePositionModule = (posId: string, modId: string) =>
+    savePositions(
+      positions.map(p =>
+        p.id !== posId
+          ? p
+          : { ...p, mods: p.mods.includes(modId) ? p.mods.filter(x => x !== modId) : [...p.mods, modId].sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) }
+      )
+    );
 
   return (
     <div className="space-y-6">
@@ -895,6 +917,77 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* Hiring positions → training modules */}
+          <div className="bg-white border border-[#E3E2E7] rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#1A1B1F] flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#F5A623]" />
+                  <span>بخش‌های استخدام و ماژول‌های هر بخش</span>
+                </h3>
+                <p className="text-xs text-[#524534] mt-0.5">
+                  بخشی که در درخواست نیرو انتخاب می‌شود، ماژول‌های پیش‌فرض آموزش و ارزیابی را تعیین می‌کند (فقط ماژول‌هایی که در زون نیرو هستند).
+                  بخشی که هیچ ماژولی ندارد یعنی «همه ماژول‌های زون».
+                </p>
+              </div>
+              <button
+                onClick={() => savePositions([...positions, { id: `pos_${Date.now()}`, label: 'بخش جدید', mods: ['M1'] }])}
+                className="md-btn-primary text-xs flex items-center gap-1.5 self-start sm:self-auto"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>افزودن بخش</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {positions.map(p => (
+                <div key={p.id} className="bg-[#F4F3F8] border border-[#E3E2E7] rounded-2xl p-3 flex flex-col lg:flex-row lg:items-center gap-3 text-xs">
+                  <input
+                    type="text"
+                    defaultValue={p.label}
+                    disabled={!canEdit}
+                    onBlur={e => {
+                      const label = e.target.value.trim();
+                      if (label && label !== p.label) savePositions(positions.map(x => (x.id === p.id ? { ...x, label } : x)));
+                    }}
+                    className="md-input py-1.5 lg:w-72 font-bold"
+                  />
+                  <div className="flex flex-wrap gap-1.5 flex-1">
+                    {activeModules.map(m => {
+                      const on = p.mods.includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          disabled={!canEdit}
+                          title={m.name}
+                          onClick={() => togglePositionModule(p.id, m.id)}
+                          className={`px-2.5 py-1 rounded-full border font-bold transition-all ${
+                            on ? 'bg-[#F5A623]/20 border-[#F5A623] text-[#835500]' : 'bg-white border-[#E3E2E7] text-[#857462]'
+                          }`}
+                        >
+                          {m.id}
+                        </button>
+                      );
+                    })}
+                    {p.mods.length === 0 && <span className="text-[11px] text-[#524534] self-center">همه ماژول‌های زون</span>}
+                  </div>
+                  <button
+                    disabled={!canEdit}
+                    onClick={() => {
+                      if (confirm(`بخش «${p.label}» حذف شود؟ درخواست‌های قبلی این بخش، ماژول‌های کل زون را پیش‌فرض می‌گیرند.`)) {
+                        savePositions(positions.filter(x => x.id !== p.id));
+                      }
+                    }}
+                    className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-xl transition-all self-end lg:self-auto"
+                    title="حذف بخش"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1337,20 +1430,21 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                 <span>بانک سوالات آزمون تئوری (C2 Theory Exam)</span>
               </h3>
               <p className="text-xs text-[#524534] mt-0.5">
-                مدیریت و افزودن سوالات ۴ گزینه‌ای برای زون‌های Hub, SuperHub و irancell
+                سوالات ۴ گزینه‌ای هر ماژول. آزمون هر نیرو فقط از سوالات ماژول‌هایی ساخته می‌شود که آموزش دیده است.
               </p>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-[#F4F3F8] border border-[#E3E2E7] p-1 rounded-2xl">
-              {(['hub', 'superhub', 'irancell'] as ZoneType[]).map(z => (
+            <div className="flex flex-wrap items-center gap-1.5 bg-[#F4F3F8] border border-[#E3E2E7] p-1 rounded-2xl">
+              {activeModules.map(m => (
                 <button
-                  key={z}
-                  onClick={() => setQuizZone(z)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    quizZone === z ? 'bg-[#F5A623] text-[#1C1D21] shadow-xs' : 'text-[#524534] hover:text-[#1A1B1F]'
+                  key={m.id}
+                  onClick={() => setQuizModule(m.id)}
+                  title={m.name}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    quizModule === m.id ? 'bg-[#F5A623] text-[#1C1D21] shadow-xs' : 'text-[#524534] hover:text-[#1A1B1F]'
                   }`}
                 >
-                  {ZONE_LABEL[z]}
+                  {m.id} <span className="font-mono text-[10px] opacity-70">({quizzes[m.id]?.length || 0})</span>
                 </button>
               ))}
             </div>
@@ -1361,7 +1455,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
             <div className="lg:col-span-5 bg-white border border-[#E3E2E7] rounded-3xl p-6 shadow-xs space-y-4">
               <h4 className="text-xs font-bold text-[#1A1B1F] flex items-center gap-1.5 border-b border-[#E3E2E7] pb-2">
                 <PlusCircle className="w-4 h-4 text-[#F5A623]" />
-                <span>افزودن سوال جدید به {ZONE_LABEL[quizZone]}</span>
+                <span>افزودن سوال جدید به {quizModule} — {quizModuleName}</span>
               </h4>
 
               <form onSubmit={handleAddQuestion} className="space-y-3 text-xs">
@@ -1418,14 +1512,19 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
             {/* List Existing Questions */}
             <div className="lg:col-span-7 bg-white border border-[#E3E2E7] rounded-3xl p-6 shadow-xs space-y-3">
               <h4 className="text-xs font-bold text-[#1A1B1F] flex items-center justify-between border-b border-[#E3E2E7] pb-2">
-                <span>سوالات فعلی زون {ZONE_LABEL[quizZone]}</span>
+                <span>سوالات فعلی ماژول {quizModule} — {quizModuleName}</span>
                 <span className="text-[10px] text-[#524534] font-mono font-bold">
-                  {quizzes[quizZone]?.length || 0} سوال
+                  {quizzes[quizModule]?.length || 0} سوال
                 </span>
               </h4>
 
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {(quizzes[quizZone] || []).map((q, idx) => (
+                {(quizzes[quizModule] || []).length === 0 && (
+                  <div className="text-xs text-[#524534] bg-[#F4F3F8] p-4 rounded-2xl border border-[#E3E2E7]">
+                    هنوز سوالی برای این ماژول ثبت نشده است؛ نیروهایی که این ماژول را دارند از آن سوالی نخواهند داشت.
+                  </div>
+                )}
+                {(quizzes[quizModule] || []).map((q, idx) => (
                   <div
                     key={idx}
                     className="bg-[#F4F3F8] p-3.5 rounded-2xl border border-[#E3E2E7] text-xs space-y-2.5"
@@ -1442,7 +1541,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                         <button
                           onClick={() => {
                             if (confirm('آیا از حذف این سوال اطمینان دارید؟')) {
-                              onDeleteQuizQuestion(quizZone, idx);
+                              onDeleteQuizQuestion(quizModule, idx);
                             }
                           }}
                           className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-xl transition-all"
@@ -1526,6 +1625,28 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                   </div>
                   <p className="text-[11px] text-[#524534] mt-1">
                     داوطلبانی که نمره کمتر از این مقدار کسب کنند در وضعیت تجدیدی/مردودی قرار می‌گیرند.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[#1A1B1F] font-bold mb-1">
+                    تعداد سوال آزمون C2 از هر ماژول
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={50}
+                    value={settings.quizQuestionsPerModule ?? DEFAULT_QUESTIONS_PER_MODULE}
+                    onChange={e =>
+                      onUpdateSettings({
+                        ...settings,
+                        quizQuestionsPerModule: Math.max(0, Math.min(50, Math.floor(Number(e.target.value) || 0))),
+                      })
+                    }
+                    className="md-input w-28 font-mono font-bold"
+                  />
+                  <p className="text-[11px] text-[#524534] mt-1">
+                    از بانک هر ماژولِ نیرو، این تعداد سوال به‌صورت تصادفی انتخاب می‌شود (۰ = همه سوالات ماژول).
                   </p>
                 </div>
               </div>

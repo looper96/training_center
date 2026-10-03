@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { PipelineTicket } from '../types/pipeline';
-import { ZONE_LABEL, MODS } from '../data/pipelineSeed';
+import { PipelineTicket, TrainingModule, ZoneConfigs, JobPosition } from '../types/pipeline';
+import { ZONE_LABEL } from '../data/pipelineSeed';
+import { collectWeakModules, defaultModulesFor, positionLabel, sortModules } from '../lib/assessment';
 import { ArrowLeft, CheckCircle2, UserCheck, BookOpen, RotateCcw, AlertTriangle, Play, ShieldAlert, GraduationCap } from 'lucide-react';
 import { showToast } from './Toast';
 import { formatDate, nowISO } from '../lib/date';
@@ -8,6 +9,9 @@ import { formatDate, nowISO } from '../lib/date';
 interface TcViewProps {
   canEdit?: boolean;
   tickets: PipelineTicket[];
+  modules: TrainingModule[];
+  zoneConfigs: ZoneConfigs;
+  positions: JobPosition[];
   onUpdateTicket: (ticket: PipelineTicket) => void;
   onNavigateToEval: (stageViewId: string, candidateTicketId: string) => void;
   onNavigateToModuleDoc: (moduleId: string) => void;
@@ -16,6 +20,9 @@ interface TcViewProps {
 export const TcView: React.FC<TcViewProps> = ({
   canEdit = true,
   tickets,
+  modules,
+  zoneConfigs,
+  positions,
   onUpdateTicket,
   onNavigateToEval,
   onNavigateToModuleDoc
@@ -26,7 +33,7 @@ export const TcView: React.FC<TcViewProps> = ({
   // Mentor Review state
   const [mentorName, setMentorName] = useState('');
   const [reviewNote, setReviewNote] = useState('');
-  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>(['M1', 'M2', 'M3', 'M4', 'M5', 'M6']);
+  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([]);
   const [classStartDate, setClassStartDate] = useState('');
 
   // Retrain picker modal
@@ -131,7 +138,7 @@ export const TcView: React.FC<TcViewProps> = ({
       showToast('حداقل یک ماژول برای آموزش انتخاب کنید.', 'warning');
       return;
     }
-    const assigned = selectedModuleIds.map(id => ({ id, done: false }));
+    const assigned = sortModules(selectedModuleIds).map(id => ({ id, done: false }));
     const updated: PipelineTicket = {
       ...t,
       status: 'training',
@@ -358,6 +365,7 @@ export const TcView: React.FC<TcViewProps> = ({
                 key={t.id}
                 onClick={() => {
                   setSelectedTicketId(t.id);
+                  setSelectedModuleIds(defaultModulesFor(t.zone, t.position, zoneConfigs, positions));
                   setMentorName(t.tc?.mentor || '');
                   setReviewNote(t.tc?.initialReviewNote || '');
                 }}
@@ -368,7 +376,7 @@ export const TcView: React.FC<TcViewProps> = ({
                     {t.hr?.candidateName}
                   </span>
                   <span className="text-xs text-[#524534] mt-1 block">
-                    {ZONE_LABEL[t.zone]} · {t.location} · ورود به TC: {t.hr?.tcEntryDate || '—'}
+                    {ZONE_LABEL[t.zone]} · {positionLabel(positions, t.position)} · {t.location} · ورود به TC: {t.hr?.tcEntryDate || '—'}
                   </span>
                 </div>
 
@@ -406,6 +414,10 @@ export const TcView: React.FC<TcViewProps> = ({
               <div className="flex justify-between py-1 border-b border-[#E3E2E7]">
                 <span className="text-[#524534]">Zone / شعبه:</span>
                 <span className="text-[#1A1B1F]">{ZONE_LABEL[selectedTicket.zone]} — {selectedTicket.location}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[#E3E2E7]">
+                <span className="text-[#524534]">بخش استخدام:</span>
+                <span className="font-bold text-[#1A1B1F]">{positionLabel(positions, selectedTicket.position)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#E3E2E7]">
                 <span className="text-[#524534]">تاریخ مصاحبه HR:</span>
@@ -493,9 +505,13 @@ export const TcView: React.FC<TcViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[#1A1B1F] font-bold mb-2">ماژول‌های موردنیاز این نیرو</label>
+                    <label className="block text-[#1A1B1F] font-bold mb-1">ماژول‌های موردنیاز این نیرو</label>
+                    <p className="text-[11px] text-[#524534] mb-2">
+                      پیش‌فرض بر اساس بخش «{positionLabel(positions, selectedTicket.position)}» در {ZONE_LABEL[selectedTicket.zone]} انتخاب شده است.
+                      آزمون‌ها و ارزیابی‌های این نیرو فقط از ماژول‌های تیک‌خورده ساخته می‌شوند.
+                    </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {MODS.map(m => (
+                      {modules.map(m => (
                         <label
                           key={m.id}
                           className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
@@ -571,7 +587,7 @@ export const TcView: React.FC<TcViewProps> = ({
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-[#1A1B1F]">{t.hr?.candidateName}</span>
-                      <span className="text-xs text-[#524534] font-mono">({ZONE_LABEL[t.zone]})</span>
+                      <span className="text-xs text-[#524534] font-mono">({ZONE_LABEL[t.zone]} · {positionLabel(positions, t.position)})</span>
                     </div>
                     <div className="text-xs text-[#524534] mt-1 flex items-center gap-4">
                       <span>مربی: {t.tc?.mentor}</span>
@@ -633,7 +649,7 @@ export const TcView: React.FC<TcViewProps> = ({
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-[#1A1B1F]">چک‌لیست ماژول‌های آموزشی اختصاص‌یافته</h4>
             {selectedTicket.tc?.assignedModules.map(m => {
-              const modInfo = MODS.find(x => x.id === m.id);
+              const modInfo = modules.find(x => x.id === m.id);
               return (
                 <div
                   key={m.id}
@@ -727,7 +743,12 @@ export const TcView: React.FC<TcViewProps> = ({
                 {evalPopupTicket.hr?.candidateName}
               </h2>
               <p className="text-xs text-[#524534] mt-1">
-                {ZONE_LABEL[evalPopupTicket.zone]} · {evalPopupTicket.location} · ارزیابی نوبت {(evalPopupTicket.tc?.evalAttempts || 0) + 1}
+                {ZONE_LABEL[evalPopupTicket.zone]} · {positionLabel(positions, evalPopupTicket.position)} · {evalPopupTicket.location} · ارزیابی نوبت {(evalPopupTicket.tc?.evalAttempts || 0) + 1}
+              </p>
+              <p className="text-xs text-[#835500] mt-1 font-bold">
+                ماژول‌های ارزیابی: {evalPopupTicket.tc?.assignedModules.map(m => m.id).join('، ') || '—'}
+                {collectWeakModules(evalPopupTicket.tc?.evalProgress).length > 0 &&
+                  ` · ضعیف: ${collectWeakModules(evalPopupTicket.tc?.evalProgress).join('، ')}`}
               </p>
             </div>
 
@@ -738,7 +759,7 @@ export const TcView: React.FC<TcViewProps> = ({
               </h4>
 
               {[
-                { stage: 'c2', label: 'C2 — آزمون دانش (۳۰ سوال)', view: 'v-eval-c2' },
+                { stage: 'c2', label: 'C2 — آزمون دانش ماژول‌ها', view: 'v-eval-c2' },
                 { stage: 'c3', label: 'C3 — چک‌لیست عملی ایستگاهی', view: 'v-eval-c3' },
                 { stage: 'c4', label: 'C4 — مصاحبه صلاحیت با سرپرست', view: 'v-eval-c4' },
                 { stage: 'c5', label: 'C5 — سناریوی شبیه‌سازی پیک', view: 'v-eval-c5' },
@@ -770,6 +791,9 @@ export const TcView: React.FC<TcViewProps> = ({
                 <span className="font-bold text-[#835500] block">
                   کدام ماژول‌ها نیاز به بازآموزی دارند؟
                 </span>
+                <span className="text-[11px] text-[#524534] block">
+                  ماژول‌هایی که در ارزیابی‌ها ضعیف بوده‌اند از قبل انتخاب شده‌اند.
+                </span>
                 <div className="grid grid-cols-2 gap-2">
                   {evalPopupTicket.tc?.assignedModules.map(m => (
                     <label key={m.id} className="flex items-center gap-2 cursor-pointer text-[#1A1B1F]">
@@ -783,7 +807,7 @@ export const TcView: React.FC<TcViewProps> = ({
                         }}
                         className="accent-[#F5A623]"
                       />
-                      <span>{m.id}</span>
+                      <span>{m.id} — {modules.find(x => x.id === m.id)?.name}</span>
                     </label>
                   ))}
                 </div>
@@ -813,7 +837,10 @@ export const TcView: React.FC<TcViewProps> = ({
                 {canEdit ? 'ارجاع به عملیات (قبول نهایی)' : 'ارجاع غیرفعال (فقط مشاهده)'}
               </button>
               <button
-                onClick={() => setRetrainTicketId(evalPopupTicket.id)}
+                onClick={() => {
+                  setRetrainTicketId(evalPopupTicket.id);
+                  setRetrainModules(collectWeakModules(evalPopupTicket.tc?.evalProgress));
+                }}
                 disabled={!canEdit}
                 className={`border px-4 py-2 rounded-2xl font-bold text-xs flex items-center gap-1 transition-all ${
                   canEdit 

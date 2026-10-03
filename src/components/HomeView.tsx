@@ -103,7 +103,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate, totalTickets }) 
             </div>
             <h3 className="text-base font-bold text-[#1A1B1F] mb-2">ارزیابی نهایی (Kirkpatrick)</h3>
             <p className="text-xs text-[#524534] leading-relaxed">
-              چارچوب ۴ سطحی: آزمون دانش C2 (۳۰ سوال)، چک‌لیست عملی C3، مصاحبه C4، شبیه‌سازی پیک C5، فرم C6 و پایش ۳۰/۶۰/۹۰ روزه C8.
+              چارچوب ۴ سطحی: آزمون دانش C2 از ماژول‌های هر نیرو، چک‌لیست عملی C3، مصاحبه C4، شبیه‌سازی پیک C5، فرم C6 و پایش ۳۰/۶۰/۹۰ روزه C8.
             </p>
           </div>
           <div className="mt-4 pt-3 border-t border-[#E3E2E7] flex items-center justify-between text-xs text-[#835500] font-bold">

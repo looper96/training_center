@@ -184,6 +184,8 @@ export interface PipelineTicket {
   id: string;
   zone: ZoneType;
   location: string;
+  /** Job position the person is hired for (see JobPosition). Drives the default training modules. */
+  position?: string;
   requiredSkills: string[];
   requestedBy: string;
   requestDate: string;
@@ -232,11 +234,35 @@ export interface SimScenario {
   criteria: string[];
 }
 
+/** One scored criterion of the C5 peak simulation. Safety criteria must score 5/5. */
+export interface SimCriterion {
+  text: string;
+  safety?: boolean;
+}
+
+/** A position (بخش) a person can be hired for, with the training modules it requires. */
+export interface JobPosition {
+  id: string;
+  label: string;
+  /** Modules this position needs. Empty = every module of the zone. */
+  mods: string[];
+}
+
+/** Training modules each zone covers (Zone-Builder). */
+export type ZoneConfigs = Record<ZoneType, { mods: string[]; dur: string }>;
+
+/** Question bank keyed by module id (M1…M8). */
+export type QuizBank = Record<string, QuizQuestion[]>;
+
 export interface SiteSettings {
   id: string;
   passingScorePct: number;
   ticketCustomFields: CustomFieldDefinition[];
   componentCustomFields: CustomFieldDefinition[];
   modules?: TrainingModule[];
+  /** Questions drawn per module for the C2 exam (0 = every question of the module). */
+  quizQuestionsPerModule?: number;
+  /** Positions offered on the request form; falls back to DEFAULT_POSITIONS. */
+  positions?: JobPosition[];
   updatedAt?: string;
 }
